@@ -1,0 +1,73 @@
+{
+  "title": "ISA 월배당 포트폴리오",
+  "subtitle": "현금흐름 우선 · 6종목 전부 월배당 · 매일 분할매수",
+  "weighted_yield": 6.28,
+  "weighted_fee": 0.27,
+  "holdings": [
+    {
+      "ticker": "273140",
+      "name": "KODEX 단기변동금리부채권액티브",
+      "weight": 0.12,
+      "floor": "1F",
+      "role": "국내 채권 · 원화 안전판",
+      "yield": 1.85
+    },
+    {
+      "ticker": "455660",
+      "name": "ACE 미국하이일드액티브(H)",
+      "weight": 0.20,
+      "floor": "1F",
+      "role": "미국 채권 · 인컴형 방어",
+      "yield": 6.68
+    },
+    {
+      "ticker": "476800",
+      "name": "KODEX 한국부동산리츠인프라",
+      "weight": 0.15,
+      "floor": "2F",
+      "role": "국내 리츠 · 오피스 월세",
+      "yield": 7.82
+    },
+    {
+      "ticker": "352560",
+      "name": "KODEX 미국부동산리츠(H)",
+      "weight": 0.10,
+      "floor": "2F",
+      "role": "미국 리츠 · 환헤지 분산",
+      "yield": 3.47
+    },
+    {
+      "ticker": "466940",
+      "name": "TIGER 은행고배당플러스TOP10",
+      "weight": 0.18,
+      "floor": "3F",
+      "role": "국내 주식 · 분리과세 수혜",
+      "yield": 3.25
+    },
+    {
+      "ticker": "0008S0",
+      "name": "TIGER 미국배당다우존스타겟데일리커버드콜",
+      "weight": 0.25,
+      "floor": "3F",
+      "role": "미국 주식 · 현금흐름 엔진",
+      "yield": 11.12
+    }
+  ],
+  "structure": {
+    "1F": {
+      "name": "안전판",
+      "weight": 0.32,
+      "detail": "원화 + 달러 이중 방어. 하락장에서 흔들림 억제."
+    },
+    "2F": {
+      "name": "월세 수입",
+      "weight": 0.25,
+      "detail": "서울 오피스 + 미국 다섹터. 임대수익 기반 현금흐름."
+    },
+    "3F": {
+      "name": "인컴 엔진",
+      "weight": 0.43,
+      "detail": "배당 + 옵션 프리미엄으로 포트폴리오 최대 현금흐름 생성."
+    }
+  }
+}
