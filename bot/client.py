@@ -26,4 +26,5 @@ class IsaflowBot(discord.Client):
         log.info("슬래시 커맨드 동기화 완료")
 
     async def on_ready(self) -> None:
-        log.info("봇 로그인: %s", self.user)
+        log.info("디스코드 로그인: %s", self.user)
+        log.info("✅ 봇 준비 완료. 디스코드에서 / 를 입력해 사용하세요.")
