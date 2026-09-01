@@ -32,6 +32,8 @@ from core.logger import LOG_FILE, get_logger
 
 log = get_logger(__name__)
 
+APP_NAME = "isaflow-bot"
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ICON_PATH = PROJECT_ROOT / "assets" / "icon_256.png"
 
@@ -130,7 +132,7 @@ def run_tray() -> None:
         icon.stop()  # 메시지 루프 종료 (즉시 반환)
 
     menu = pystray.Menu(
-        pystray.MenuItem("isaflow-bot", None, enabled=False),
+        pystray.MenuItem(APP_NAME, None, enabled=False),
         pystray.MenuItem(
             lambda _: f"상태: {runner.status().text}", None, enabled=False
         ),
@@ -142,7 +144,7 @@ def run_tray() -> None:
         pystray.MenuItem("종료", _quit),
     )
 
-    icon = pystray.Icon("isaflow-bot", icons[BotState.STOPPED], "isaflow-bot", menu)
+    icon = pystray.Icon(APP_NAME, icons[BotState.STOPPED], APP_NAME, menu)
 
     def _poll() -> None:
         last_state: BotState | None = None
@@ -156,19 +158,21 @@ def run_tray() -> None:
                     if status.state is BotState.ERROR:
                         _notify(
                             icon,
-                            "봇이 중지되었습니다",
-                            f"{status.text} — 로그를 확인하세요.",
+                            f"{APP_NAME} · 중지됨",
+                            f"{status.text} — 트레이 우클릭 → 로그 보기로 확인하세요.",
                         )
                     elif status.state is BotState.RUNNING and last_state in (
                         BotState.STARTING,
                         BotState.RECONNECTING,
                     ):
                         _notify(
-                            icon, "봇 준비 완료", "디스코드에서 / 를 입력해 사용하세요."
+                            icon,
+                            f"{APP_NAME} · 준비 완료",
+                            "ISA 계좌 봇입니다. 디스코드에서 / 를 입력해 사용하세요.",
                         )
                     last_state = status.state
 
-                parts = ["isaflow-bot", status.text]
+                parts = [APP_NAME, status.text]
                 if status.uptime_text:
                     parts.append(status.uptime_text)
                 title = " · ".join(parts)
@@ -191,6 +195,12 @@ def run_tray() -> None:
 
 
 def _notify(icon: TrayIcon, title: str, message: str) -> None:
+    """토스트 알림.
+
+    상단 헤더의 앱 이름("Python")은 Windows가 프로세스(pythonw.exe)에서 가져오는
+    값이라 pystray로는 바꿀 수 없다. 그래서 굵은 첫 줄(title)에 봇 이름을 넣어
+    어떤 프로그램의 알림인지 식별되게 한다.
+    """
     try:
         icon.notify(message, title)
     except Exception:  # noqa: BLE001 - 알림 미지원 환경에서도 계속 돈다
