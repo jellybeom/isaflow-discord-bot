@@ -8,15 +8,24 @@
 아이콘이 사라지지도, 반응하지도 않는다. 콜백은 즉시 반환해야 한다.
 """
 
+from __future__ import annotations
+
 import os
 import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pystray
 from PIL import Image, ImageDraw, ImageEnhance
+
+if TYPE_CHECKING:
+    # pystray.Icon은 클래스가 아니라 실행 시점에 백엔드를 골라 대입하는 "변수"라서
+    # 타입 자리에 쓰면 Pylance가 reportInvalidTypeForm 경고를 낸다.
+    # 실제 기반 클래스를 타입 검사용으로만 가져온다.
+    from pystray._base import Icon as TrayIcon
 
 from app.runner import BotRunner, BotState
 from core.logger import LOG_FILE, get_logger
@@ -107,11 +116,11 @@ def run_tray() -> None:
     icons = _build_icons()
     stop_event = threading.Event()
 
-    def _restart(icon: pystray.Icon, _item: object) -> None:
+    def _restart(icon: TrayIcon, _item: object) -> None:
         # 메뉴 콜백은 메시지 루프를 막으므로 반드시 스레드로 넘긴다
         threading.Thread(target=runner.restart, daemon=True).start()
 
-    def _quit(icon: pystray.Icon, _item: object) -> None:
+    def _quit(icon: TrayIcon, _item: object) -> None:
         # 여기서 runner.stop()을 부르면 메시지 루프가 최대 수십 초 멈춰
         # 아이콘이 트레이에서 사라지지 않는다. 루프부터 끝내고, 봇 정리는
         # icon.run()이 반환된 뒤 finally에서 한다.
@@ -169,7 +178,7 @@ def run_tray() -> None:
             except Exception:  # noqa: BLE001 - 폴링이 죽으면 상태가 얼어붙는다
                 log.exception("상태 갱신 실패")
 
-    def _on_start(_icon: pystray.Icon) -> None:
+    def _on_start(_icon: TrayIcon) -> None:
         _icon.visible = True
         runner.start()
         threading.Thread(target=_poll, name="tray-poll", daemon=True).start()
@@ -181,7 +190,7 @@ def run_tray() -> None:
         runner.stop()
 
 
-def _notify(icon: pystray.Icon, title: str, message: str) -> None:
+def _notify(icon: TrayIcon, title: str, message: str) -> None:
     try:
         icon.notify(message, title)
     except Exception:  # noqa: BLE001 - 알림 미지원 환경에서도 계속 돈다
