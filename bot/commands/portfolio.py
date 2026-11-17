@@ -1,6 +1,4 @@
 import asyncio
-import json
-from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -8,9 +6,8 @@ from discord import app_commands
 from bot.charts import portfolio_donut
 from bot.permissions import check_access
 from core.config import Settings
+from core.portfolio import load_portfolio
 from kiwoom.client import KiwoomClient
-
-PORTFOLIO_PATH = Path(__file__).resolve().parents[2] / "data" / "portfolio.json"
 
 FLOOR_EMOJI = {"1F": "🛡️", "2F": "🏢", "3F": "💰"}
 
@@ -73,14 +70,16 @@ def _portfolio_embed(data: dict) -> discord.Embed:
     return embed
 
 
-def register(tree: app_commands.CommandTree, settings: Settings, kiwoom: KiwoomClient) -> None:
+def register(
+    tree: app_commands.CommandTree, settings: Settings, kiwoom: KiwoomClient
+) -> None:
     @tree.command(name="포트폴리오", description="현재 설정된 포트폴리오 구성 조회")
     async def _cmd(interaction: discord.Interaction) -> None:
         if not await check_access(interaction, settings):
             return
 
         await interaction.response.defer(thinking=True)
-        data = json.loads(PORTFOLIO_PATH.read_text(encoding="utf-8"))
+        data = load_portfolio()
 
         # 도넛 차트는 CPU 작업 — 별도 스레드에서 생성
         try:

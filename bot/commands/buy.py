@@ -1,7 +1,6 @@
 """/매수 — 포트폴리오 비중과 현재 보유량을 비교해 리밸런싱 매수."""
+
 import asyncio
-import json
-from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -11,22 +10,24 @@ from bot.views import BuyConfirmView
 from core.config import Settings
 from core.logger import get_logger
 from core.planner import PlanItem, calculate_buy_plan
+from core.portfolio import load_portfolio
 from kiwoom.client import KiwoomClient
 
 log = get_logger(__name__)
 
-PORTFOLIO_PATH = Path(__file__).resolve().parents[2] / "data" / "portfolio.json"
-
 
 async def _gather_holdings(kiwoom: KiwoomClient) -> tuple[list[dict], float]:
     """포트폴리오 종목별로 목표비중·매도1호가·현재 보유액을 모은다.
+
+    portfolio.json에 있는 종목만 순회하므로, 같은 계좌에 다른 전략 종목이
+    있어도 매수 계획에는 들어가지 않는다 (평가액도 분모에 포함되지 않는다).
 
     Returns:
         (holdings, buyable)
         - holdings: calculate_buy_plan에 넘길 dict 리스트
         - buyable: 계좌의 매수 가능 금액
     """
-    portfolio = json.loads(PORTFOLIO_PATH.read_text(encoding="utf-8"))
+    portfolio = load_portfolio()
     balance = await kiwoom.get_balance()
 
     # 보유 종목을 ticker로 빠르게 찾도록 매핑
@@ -38,13 +39,15 @@ async def _gather_holdings(kiwoom: KiwoomClient) -> tuple[list[dict], float]:
         price = await kiwoom.get_ask_price(ticker)
         h = held.get(ticker)
         hold_amt = (h.current_price * h.quantity) if h else 0.0
-        holdings.append({
-            "ticker": ticker,
-            "name": item["name"],
-            "weight": item["weight"],
-            "price": price,
-            "hold_amt": hold_amt,
-        })
+        holdings.append(
+            {
+                "ticker": ticker,
+                "name": item["name"],
+                "weight": item["weight"],
+                "price": price,
+                "hold_amt": hold_amt,
+            }
+        )
     return holdings, balance.buyable
 
 
@@ -87,14 +90,18 @@ def _plan_embed(
     return embed
 
 
-def register(tree: app_commands.CommandTree, settings: Settings, kiwoom: KiwoomClient) -> None:
+def register(
+    tree: app_commands.CommandTree, settings: Settings, kiwoom: KiwoomClient
+) -> None:
     @tree.command(name="매수", description="포트폴리오 비중에 맞춰 리밸런싱 매수")
     @app_commands.describe(amount="매수 금액 (원)")
     async def _cmd(interaction: discord.Interaction, amount: int) -> None:
         if not await check_access(interaction, settings):
             return
         if amount <= 0:
-            await interaction.response.send_message("❌ 금액은 0보다 커야 합니다.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ 금액은 0보다 커야 합니다.", ephemeral=True
+            )
             return
 
         await interaction.response.defer(thinking=True)
@@ -104,7 +111,9 @@ def register(tree: app_commands.CommandTree, settings: Settings, kiwoom: KiwoomC
             holdings, buyable = await _gather_holdings(kiwoom)
         except Exception as e:
             log.exception("매수 준비 실패")
-            await interaction.followup.send(f"❌ 계좌/시세 조회 실패: {e}", ephemeral=True)
+            await interaction.followup.send(
+                f"❌ 계좌/시세 조회 실패: {e}", ephemeral=True
+            )
             return
 
         # 2) 리밸런싱 계획 계산
@@ -119,13 +128,15 @@ def register(tree: app_commands.CommandTree, settings: Settings, kiwoom: KiwoomC
         # 3) 확인 → 매수 실행 → 체결 확인
         async def on_confirm(inter: discord.Interaction) -> None:
             # 3-1) 종목별 주문 접수
-            ordered = []   # [(PlanItem, 주문번호), ...]
+            ordered = []  # [(PlanItem, 주문번호), ...]
             order_lines = []
             for p in buyable_items:
                 try:
                     ord_no = await kiwoom.buy_limit(p.ticker, p.quantity, p.price)
                     ordered.append((p, ord_no))
-                    order_lines.append(f"✅ {p.name} {p.quantity}주 @ {p.price:,}원 (주문 {ord_no})")
+                    order_lines.append(
+                        f"✅ {p.name} {p.quantity}주 @ {p.price:,}원 (주문 {ord_no})"
+                    )
                 except Exception as e:
                     log.exception("매수 주문 실패: %s", p.ticker)
                     order_lines.append(f"❌ {p.name}: 주문 실패 — {e}")

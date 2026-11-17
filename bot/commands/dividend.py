@@ -1,9 +1,7 @@
 """/배당 — ISA 계좌 분배금 내역 조회."""
 
 import asyncio
-import json
 from datetime import date, datetime, timedelta
-from pathlib import Path
 
 import discord
 import httpx
@@ -13,11 +11,14 @@ from bot.charts import dividend_trend_bar
 from bot.permissions import check_access
 from core.config import Settings
 from core.logger import get_logger
+from core.portfolio import (
+    managed_tickers,
+    name_map as portfolio_name_map,
+    split_by_managed,
+)
 from kiwoom.client import KiwoomClient, KiwoomRateLimitError
 
 log = get_logger(__name__)
-
-PORTFOLIO_PATH = Path(__file__).resolve().parents[2] / "data" / "portfolio.json"
 
 # 키움 적요명에서 분배금 입금을 식별하는 키워드
 DIVIDEND_REMARK = "수익분배금입금"
@@ -162,16 +163,19 @@ def register(
         divs = [t for t in txs if DIVIDEND_REMARK in t.remark and t.ticker]
 
         # 4) 종목명 표시용 매핑 (포트폴리오 우선, 없으면 응답의 stk_nm)
-        name_map: dict[str, str] = {}
-        try:
-            portfolio = json.loads(PORTFOLIO_PATH.read_text(encoding="utf-8"))
-            name_map = {h["ticker"]: h["name"] for h in portfolio["holdings"]}
-        except (OSError, ValueError, KeyError):
-            log.warning("portfolio.json을 읽지 못해 응답의 종목명을 사용합니다.")
+        name_map: dict[str, str] = dict(portfolio_name_map())
         for tx in divs:
             name_map.setdefault(tx.ticker, tx.name)
 
-        # 5) 월별·종목별 집계 (한 번만 계산해서 임베드와 차트가 함께 쓴다)
+        # 5) 전략 / 전략 외 분리 — 집계와 차트는 전략 종목만 다룬다.
+        #    같은 계좌에 다른 전략 종목이 있으면 월배당 현금흐름이 뒤섞인다.
+        tickers = managed_tickers()
+        if tickers:
+            divs, outside = split_by_managed(divs, tickers)
+        else:
+            outside = []
+
+        # 6) 월별·종목별 집계 (한 번만 계산해서 임베드와 차트가 함께 쓴다)
         grouped = _group_by_month(divs)
 
         total = sum(t.amount for t in divs)
@@ -209,7 +213,24 @@ def register(
                 inline=False,
             )
 
-        # 6) 월별 추이 차트 (2개월 이상 분배 데이터가 있을 때만)
+        # 전략 외 분배금은 합계만 참고로 보여준다
+        if outside:
+            out_total = sum(t.amount for t in outside)
+            by_ticker: dict[str, int] = {}
+            for tx in outside:
+                by_ticker[tx.ticker] = by_ticker.get(tx.ticker, 0) + tx.amount
+            embed.add_field(
+                name=f"👀 전략 외 분배금 {len(outside)}건 · {out_total:,}원 — 참고",
+                value=_fit(
+                    [
+                        f"• {name_map.get(tk, tk)} — {amt:,}원"
+                        for tk, amt in sorted(by_ticker.items(), key=lambda x: -x[1])
+                    ]
+                ),
+                inline=False,
+            )
+
+        # 7) 월별 추이 차트 (2개월 이상 분배 데이터가 있을 때만)
         chart_file = None
         if len(grouped) >= 2:
             try:
